@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <bitset>
 #include <exception>
@@ -122,7 +123,17 @@ class ComponentPool : public IComponentPool
         indexToEntity.erase(indexOfRemoveEntity);
     }
 
-    T* get(Entity entity) { return &(components[entityToIndex[entity]]); }
+    T* get(Entity entity)
+    {
+        try
+        {
+            return &(components[entityToIndex[entity]]);
+        }
+        catch (std::out_of_range e)
+        {
+            return nullptr;
+        }
+    }
 
     void onEntityDestroy(Entity entity) override { remove(entity); }
 
@@ -240,7 +251,7 @@ class ISystem
 {
   public:
     virtual ~ISystem() = default;
-    virtual void process(float deltaTime, std::vector<Entity>& entities, ECS& ecs) = 0;
+    virtual void process(const float deltaTime, std::vector<Entity>& entities, ECS& ecs) = 0;
     virtual Signature getSignature() = 0;
 
   protected:
@@ -279,7 +290,10 @@ class SystemManager
             Signature systemSignature = systems[i]->getSignature();
             if ((signature & systemSignature) == systemSignature)
             {
-                entitiesVec[i].push_back(entity);
+                if (std::find(entitiesVec[i].begin(), entitiesVec[i].end(), entity) == entitiesVec[i].end())
+                {
+                    entitiesVec[i].push_back(entity);
+                }
             }
             else
             {
@@ -356,7 +370,6 @@ class ECS
     template <typename T>
     T* getComponent(Entity entity)
     {
-
         return componentManager.get<T>(entity);
     }
 
@@ -373,4 +386,3 @@ class ECS
     ComponentManager componentManager;
     SystemManager systemManager;
 };
-
