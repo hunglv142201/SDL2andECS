@@ -120,7 +120,7 @@ class ComponentPool : public IComponentPool
         indexToEntity[indexOfRemoveEntity] = entityOfLastComponent;
 
         entityToIndex.erase(removeEntity);
-        indexToEntity.erase(indexOfRemoveEntity);
+        indexToEntity.erase(indexOfLastComponent);
     }
 
     T* get(Entity entity)
@@ -297,7 +297,7 @@ class SystemManager
             }
             else
             {
-                ECSUtils::swapRemove(entitiesVec[i], entity);
+                swapRemove(entitiesVec[i], entity);
             }
         }
     }
@@ -306,7 +306,7 @@ class SystemManager
     {
         for (int i = 0; i < systems.size(); i++)
         {
-            ECSUtils::swapRemove(entitiesVec[i], entity);
+            swapRemove(entitiesVec[i], entity);
         }
     }
 
@@ -321,6 +321,18 @@ class SystemManager
   private:
     std::vector<ISystem*> systems;
     std::vector<std::vector<Entity>> entitiesVec;
+
+    void swapRemove(std::vector<Entity>& enttities, Entity entity)
+    {
+        for (int i = 0; i < enttities.size(); i++)
+        {
+            if (enttities[i] == entity)
+            {
+                ECSUtils::swapRemove(enttities, i);
+                return;
+            }
+        }
+    }
 };
 
 class ECS
@@ -328,14 +340,9 @@ class ECS
   public:
     Entity newEntity() { return entityManager.createNew(); }
 
-    Signature getSignature(Entity entity) { return entityManager.getSignature(entity); }
+    void destroyEntity(Entity entity) { tobeDestroyedEntities.push_back(entity); }
 
-    void destroyEntity(Entity entity)
-    {
-        entityManager.destroy(entity);
-        componentManager.onEntityDestroy(entity);
-        systemManager.onEntityDestroy(entity);
-    }
+    Signature getSignature(Entity entity) { return entityManager.getSignature(entity); }
 
     template <typename T>
     void registerComponent()
@@ -379,10 +386,28 @@ class ECS
         systemManager.registerSystem(system);
     }
 
-    void processSystem(float deltaTime = 1.0f) { systemManager.process(deltaTime, *this); }
+    void processSystem(float deltaTime = 1.0f)
+    {
+        for (Entity entity : tobeDestroyedEntities)
+        {
+            _destroyEntity(entity);
+        }
+        tobeDestroyedEntities.clear();
+
+        systemManager.process(deltaTime, *this);
+    }
 
   private:
     EntityManager entityManager;
     ComponentManager componentManager;
     SystemManager systemManager;
+
+    std::vector<Entity> tobeDestroyedEntities;
+
+    void _destroyEntity(Entity entity)
+    {
+        entityManager.destroy(entity);
+        componentManager.onEntityDestroy(entity);
+        systemManager.onEntityDestroy(entity);
+    }
 };
